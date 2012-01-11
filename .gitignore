@@ -1,0 +1,22 @@
+############
+# Compiled #
+############
+bin/
+*.class
+
+#################
+# IDE Generated #
+#################
+.classpath
+.project
+.settings
+
+##########
+# Assets #
+##########
+# Free Assets For Everyone! #
+
+########
+# Misc #
+########
+*~
