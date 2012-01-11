@@ -22,12 +22,33 @@
 
 package kuusisto.finn.netlounge.server;
 
+import java.net.InetAddress;
+
 public class Person {
 
+	private InetAddress address;
+	private int port;
 	private String name;
 	private int id;
 	private double x;
 	private double y;
+	
+	public Person() { }
+	
+	public Person(InetAddress address, int port, String name, int id) {
+		this.address = address;
+		this.port = port;
+		this.name = name;
+		this.id = id;
+	}
+	
+	public void setAddress(InetAddress address) {
+		this.address = address;
+	}
+	
+	public void setPort(int port) {
+		this.port = port;
+	}
 	
 	public void setName(String name) {
 		this.name = name;
@@ -43,6 +64,14 @@ public class Person {
 	
 	public void setY(double y) {
 		this.y = y;
+	}
+	
+	public InetAddress getAddress() {
+		return this.address;
+	}
+	
+	public int getPort() {
+		return this.port;
 	}
 	
 	public String getName() {

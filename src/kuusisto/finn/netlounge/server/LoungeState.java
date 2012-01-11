@@ -26,17 +26,37 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import kuusisto.finn.netlounge.Constants;
+
 public class LoungeState {
 	
 	public static final double WIDTH = 500;
 	public static final double HEIGHT = 500;
 	public static final double STEPS_PER_TICK = 1;
-	public static final int TICKS_PER_SEC = 30;
 
 	private Map<Integer,Person> persons;
 	
 	public LoungeState() {
 		this.persons = new HashMap<Integer,Person>();
+	}
+	
+	public void addPerson(Person person) {
+		//assign them a position
+		person.setX(Math.random() * LoungeState.WIDTH);
+		person.setY(Math.random() * LoungeState.HEIGHT);
+		this.persons.put(person.getID(), person);
+	}
+	
+	public void removePerson(Person person) {
+		this.persons.remove(person.getID());
+	}
+	
+	public void removePerson(int id) {
+		this.persons.remove(id);
+	}
+	
+	public boolean hasPerson(int id) {
+		return this.persons.containsKey(id);
 	}
 	
 	public void tick(List<PersonCommand> commands) {
@@ -48,34 +68,34 @@ public class LoungeState {
 				double xd = 0;
 				double yd = 0;
 				switch (command.getCommand()) {
-					case PersonCommand.UP: 
+					case Constants.PCMD_UP: 
 						yd -= LoungeState.STEPS_PER_TICK;
 						break;
-					case PersonCommand.UP_RIGHT:
+					case Constants.PCMD_UP_RIGHT:
 						//so what if they move farther on diagonals
 						xd += LoungeState.STEPS_PER_TICK;
 						yd -= LoungeState.STEPS_PER_TICK;
 						break;
-					case PersonCommand.RIGHT:
+					case Constants.PCMD_RIGHT:
 						xd += LoungeState.STEPS_PER_TICK;
 						break;
-					case PersonCommand.DOWN_RIGHT:
+					case Constants.PCMD_DOWN_RIGHT:
 						//so what if they move farther on diagonals
 						xd += LoungeState.STEPS_PER_TICK;
 						yd += LoungeState.STEPS_PER_TICK;
 						break;
-					case PersonCommand.DOWN:
+					case Constants.PCMD_DOWN:
 						yd += LoungeState.STEPS_PER_TICK;
 						break;
-					case PersonCommand.DOWN_LEFT:
+					case Constants.PCMD_DOWN_LEFT:
 						//so what if they move farther on diagonals
 						xd -= LoungeState.STEPS_PER_TICK;
 						yd += LoungeState.STEPS_PER_TICK;
 						break;
-					case PersonCommand.LEFT:
+					case Constants.PCMD_LEFT:
 						xd -= LoungeState.STEPS_PER_TICK;
 						break;
-					case PersonCommand.UP_LEFT:
+					case Constants.PCMD_UP_LEFT:
 						//so what if they move farther on diagonals
 						xd -= LoungeState.STEPS_PER_TICK;
 						yd -= LoungeState.STEPS_PER_TICK;
@@ -101,6 +121,22 @@ public class LoungeState {
 				person.setY(newY);
 			}
 		}
+	}
+	
+	public String getStateMessage() {
+		StringBuilder str = new StringBuilder();
+		//start with message type
+		str.append(Constants.MSG_STATE);
+		//and add 1 line per person
+		for (Person p : this.persons.values()) {
+			str.append(Constants.MSG_LINE_SEP);
+			str.append(p.getName());
+			str.append(Constants.MSG_INLINE_SEP);
+			str.append(p.getX());
+			str.append(Constants.MSG_INLINE_SEP);
+			str.append(p.getY());
+		}
+		return str.toString();
 	}
 	
 }
