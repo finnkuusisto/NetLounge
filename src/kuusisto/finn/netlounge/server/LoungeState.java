@@ -35,9 +35,11 @@ public class LoungeState {
 	public static final double STEPS_PER_TICK = 1;
 
 	private Map<Integer,Person> persons;
+	private long messagesCount; //for state ordering at client
 	
 	public LoungeState() {
 		this.persons = new HashMap<Integer,Person>();
+		this.messagesCount = 0;
 	}
 	
 	public void addPerson(Person person) {
@@ -127,6 +129,10 @@ public class LoungeState {
 		StringBuilder str = new StringBuilder();
 		//start with message type
 		str.append(Constants.MSG_STATE);
+		str.append(Constants.MSG_LINE_SEP);
+		//add the message count
+		str.append(this.messagesCount);
+		this.messagesCount++;
 		//and add 1 line per person
 		for (Person p : this.persons.values()) {
 			str.append(Constants.MSG_LINE_SEP);

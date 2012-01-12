@@ -22,6 +22,184 @@
 
 package kuusisto.finn.netlounge.client;
 
+import java.awt.Canvas;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.image.BufferStrategy;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+
+import javax.swing.JFrame;
+
+import kuusisto.finn.netlounge.Constants;
+
 public class LoungeClient {
+	
+	public static final int WIDTH = 800;
+	public static final int HEIGHT = 800;
+	
+	public static final int TIMEOUT = 10;
+	public static final int DRAWS_PER_SEC = 30;
+	public static final long NANOS_PER_DRAW = 
+		1000000000 / LoungeClient.DRAWS_PER_SEC;
+	public static final long MILLIS_PER_DRAW =
+		1000 / LoungeClient.DRAWS_PER_SEC;
+	//ticks are for user input while draws are rendering
+	public static final int TICKS_PER_SEC = 20;
+	public static final long NANOS_PER_TICK =
+		1000000000 / LoungeClient.TICKS_PER_SEC;
+	public static final long MILLIS_PER_TICK =
+		1000 / LoungeClient.TICKS_PER_SEC;
+	
+	private InetAddress serverAddress;
+	private int serverPort;
+	private DatagramSocket socket;
+	private LoungeClientListenThread listener;
+	private ClientLoungeState state;
+	
+	private JFrame frame;
+	private Canvas canvas;
+	private BufferStrategy buffer;
+	
+	public LoungeClient(String host, int port) throws UnknownHostException,
+			SocketException {
+		//setup network crap
+		this.serverAddress = InetAddress.getByName(host);
+		this.serverPort = port;
+		this.socket = new DatagramSocket();
+		this.state = new ClientLoungeState();
+		this.listener = new LoungeClientListenThread(this.state);
+		//setup window crap
+		Dimension dim = new Dimension(LoungeClient.WIDTH, LoungeClient.HEIGHT);
+		this.frame = new JFrame("Lounge Client");
+		this.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		this.frame.setIgnoreRepaint(true);
+		this.frame.setResizable(false);
+		this.canvas = new Canvas();
+		this.canvas.setIgnoreRepaint(true);
+		this.canvas.setPreferredSize(dim);
+		this.canvas.setBackground(Color.WHITE);
+		this.frame.add(canvas);
+		this.frame.pack();
+		this.frame.setLocationRelativeTo(null);
+		this.canvas.createBufferStrategy(2);
+		this.buffer = this.canvas.getBufferStrategy();
+		this.canvas.addKeyListener(Controller.getListener());
+		this.frame.addKeyListener(Controller.getListener());
+	}
+	
+	private void tick() {
+		//figure out what the user is pressing
+		int command = -1;
+		if (Controller.isKeyDown(Controller.K_UP)) {
+			command = Constants.PCMD_UP;
+			//also right or left?
+			if (Controller.isKeyDown(Controller.K_RIGHT)) {
+				command = Constants.PCMD_UP_RIGHT;
+			}
+			else if (Controller.isKeyDown(Controller.K_LEFT)) {
+				command = Constants.PCMD_UP_LEFT;
+			}
+		}
+		else if (Controller.isKeyDown(Controller.K_RIGHT)) {
+			command = Constants.PCMD_RIGHT;
+		}
+		else if (Controller.isKeyDown(Controller.K_DOWN)) {
+			command = Constants.PCMD_DOWN;
+			//also right or left?
+			if (Controller.isKeyDown(Controller.K_RIGHT)) {
+				command = Constants.PCMD_DOWN_RIGHT;
+			}
+			else if (Controller.isKeyDown(Controller.K_LEFT)) {
+				command = Constants.PCMD_DOWN_LEFT;
+			}
+		}
+		else if (Controller.isKeyDown(Controller.K_LEFT)) {
+			command = Constants.PCMD_LEFT;
+		}
+		//TODO send
+	}
+	
+	private void draw() {
+		synchronized (this.state) {
+			Graphics g = null;
+			try {
+				g = this.buffer.getDrawGraphics();
+				g.fillRect(0, 0, LoungeClient.WIDTH, LoungeClient.HEIGHT);
+				this.state.draw(g);
+			}
+			finally {
+				g.dispose();
+				this.buffer.show();
+				this.canvas.getToolkit().sync();
+			}
+		}
+	}
+	
+	//TODO the loop should really be better
+	public void run() {
+		//try to connect
+		if (!this.listener.connect(this.serverAddress, this.serverPort)) {
+			System.out.println("Unable to connect to host!");
+			System.exit(1);
+		}
+		//if successful, start the listen thread
+		this.listener.start();
+		try { //sleep for the listener to get going
+			Thread.sleep(2);
+		} catch (InterruptedException e1) { }
+		//show the frame
+		this.frame.setVisible(true);
+		//start the input/render loop
+		long now = 0;
+		long lastTick = 0;
+		long lastDraw = 0;
+		boolean running = true;
+		while (running) {
+			now = System.nanoTime();
+			//if time to tick
+			if (now - lastTick > LoungeClient.NANOS_PER_TICK) {
+				lastTick = System.nanoTime();
+				this.tick();
+			}
+			//if time to draw
+			if (now - lastDraw > LoungeClient.NANOS_PER_DRAW) {
+				lastDraw = System.nanoTime();
+				this.draw();
+			}
+			//sleep for a bit
+			try {
+				Thread.sleep(2);
+			} catch (InterruptedException e) { }
+		}
+	}
+	
+	public static void main(String[] args) {
+		if (args.length != 2) {
+			System.out.println("Usage:");
+			System.out.println("LoungeClient <host> <port>");
+			return;
+		}
+		LoungeClient client = null;
+		try {
+			String host = args[0];
+			int port = Integer.parseInt(args[1]);
+			client = new LoungeClient(host, port);
+		} catch (NumberFormatException e) {
+			System.out.println("Invalid port!");
+			System.exit(1);
+		} catch (UnknownHostException e) {
+			System.out.println("Unknown host!");
+			System.exit(1);
+		} catch (SocketException e) {
+			System.out.println("Unable to open socket!");
+			e.printStackTrace();
+			System.exit(1);
+		}
+		client.run();
+	}
 
 }

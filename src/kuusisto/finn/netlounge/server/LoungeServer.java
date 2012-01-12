@@ -70,7 +70,7 @@ public class LoungeServer {
 		//start the listen thread
 		this.listener.start();
 		try { //sleep to let the listener start
-			Thread.sleep(1);
+			Thread.sleep(2);
 		} catch (InterruptedException e1) {}
 		//start the simulation loop
 		long now = 0;
@@ -125,7 +125,7 @@ public class LoungeServer {
 			try {
 				this.sendSocket.send(packet);
 			} catch (IOException e) {
-				System.out.println("Failed sending packet to " +
+				System.out.println("Failed sending state packet to " +
 						p.getAddress());
 			}
 		}
@@ -185,6 +185,11 @@ public class LoungeServer {
 			synchronized (this.connectedPersons) {
 				for (Person p : connecting) {
 					if (!this.connectedPersons.containsKey(p.getID())) {
+						if (LoungeServer.VERBOSE) {
+							System.out.println("Connect success from " +
+									p.getAddress());
+							System.out.flush();
+						}
 						this.connectedPersons.put(p.getID(), p);
 						this.state.addPerson(p);
 					}
