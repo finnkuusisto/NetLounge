@@ -12,6 +12,12 @@ public class ClientPerson {
 	private double x;
 	private double y;
 	
+	public ClientPerson(String name, double x, double y) {
+		this.name = name;
+		this.x = x;
+		this.y = y;
+	}
+	
 	public String getName() {
 		return this.name;
 	}

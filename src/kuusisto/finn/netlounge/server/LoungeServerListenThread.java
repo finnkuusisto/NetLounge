@@ -85,7 +85,7 @@ public class LoungeServerListenThread extends Thread {
 		}
 		else if (message.startsWith(Constants.MSG_KEEPALIVE + 
 				Constants.MSG_LINE_SEP)) {
-			if (LoungeServer.VERBOSE) {
+			if (LoungeServer.VERBOSE2) {
 				System.out.println("keep-alive from " + packet.getAddress());
 				System.out.flush();
 			}
@@ -193,7 +193,7 @@ public class LoungeServerListenThread extends Thread {
 				byte[] buf = new byte[2048];
 				//receive data
 				DatagramPacket packet = new DatagramPacket(buf, buf.length);
-				socket.receive(packet);
+				this.socket.receive(packet);
 				//process data
 				this.processData(packet);
 			} catch (IOException e) {

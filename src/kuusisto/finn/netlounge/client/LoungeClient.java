@@ -27,10 +27,13 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.image.BufferStrategy;
+import java.io.IOException;
+import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Scanner;
 
 import javax.swing.JFrame;
 
@@ -104,9 +107,6 @@ public class LoungeClient {
 				command = Constants.PCMD_UP_LEFT;
 			}
 		}
-		else if (Controller.isKeyDown(Controller.K_RIGHT)) {
-			command = Constants.PCMD_RIGHT;
-		}
 		else if (Controller.isKeyDown(Controller.K_DOWN)) {
 			command = Constants.PCMD_DOWN;
 			//also right or left?
@@ -117,10 +117,56 @@ public class LoungeClient {
 				command = Constants.PCMD_DOWN_LEFT;
 			}
 		}
+		else if (Controller.isKeyDown(Controller.K_RIGHT)) {
+			command = Constants.PCMD_RIGHT;
+		}
 		else if (Controller.isKeyDown(Controller.K_LEFT)) {
 			command = Constants.PCMD_LEFT;
 		}
-		//TODO send
+		//send command
+		this.sendCommand(command);
+		//send keep-alive
+		this.sendKeepAlive();
+	}
+	
+	private void sendCommand(int command) {
+		if (command != -1) {
+			String commandMessage = this.buildCommandMessage(command);
+			byte[] data = commandMessage.getBytes();
+			DatagramPacket packet = new DatagramPacket(data, data.length,
+					this.serverAddress, this.serverPort);
+			try {
+				this.socket.send(packet);
+			} catch (IOException e) { }
+		}
+	}
+	
+	private void sendKeepAlive() {
+		String keepAlive = this.buildKeepAliveMessage();
+		byte[] data = keepAlive.getBytes();
+		DatagramPacket packet = new DatagramPacket(data, data.length,
+				this.serverAddress, this.serverPort);
+		try {
+			this.socket.send(packet);
+		} catch (IOException e) { }
+	}
+	
+	private String buildKeepAliveMessage() {
+		StringBuilder str = new StringBuilder();
+		str.append(Constants.MSG_KEEPALIVE);
+		str.append(Constants.MSG_LINE_SEP);
+		str.append(this.state.getClientID());
+		return str.toString();
+	}
+	
+	private String buildCommandMessage(int command) {
+		StringBuilder str = new StringBuilder();
+		str.append(Constants.MSG_COMMAND);
+		str.append(Constants.MSG_LINE_SEP);
+		str.append(this.state.getClientID());
+		str.append(Constants.MSG_INLINE_SEP);
+		str.append(command);
+		return str.toString();
 	}
 	
 	private void draw() {
@@ -128,6 +174,7 @@ public class LoungeClient {
 			Graphics g = null;
 			try {
 				g = this.buffer.getDrawGraphics();
+				g.setColor(Color.WHITE);
 				g.fillRect(0, 0, LoungeClient.WIDTH, LoungeClient.HEIGHT);
 				this.state.draw(g);
 			}
@@ -141,8 +188,13 @@ public class LoungeClient {
 	
 	//TODO the loop should really be better
 	public void run() {
+		//first get the user's name
+		Scanner scan = new Scanner(System.in);
+		System.out.print("Please enter your name: ");
+		String name = scan.nextLine();
 		//try to connect
-		if (!this.listener.connect(this.serverAddress, this.serverPort)) {
+		if (!this.listener.connect(this.serverAddress, this.serverPort,
+				name)) {
 			System.out.println("Unable to connect to host!");
 			System.exit(1);
 		}

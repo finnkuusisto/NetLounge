@@ -32,7 +32,7 @@ public class LoungeState {
 	
 	public static final double WIDTH = 500;
 	public static final double HEIGHT = 500;
-	public static final double STEPS_PER_TICK = 1;
+	public static final double STEPS_PER_TICK = 2;
 
 	private Map<Integer,Person> persons;
 	private long messagesCount; //for state ordering at client

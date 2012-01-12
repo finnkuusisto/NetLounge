@@ -40,7 +40,9 @@ public class LoungeServer {
 	public static final long MILLIS_PER_TICK =
 		1000 / LoungeServer.TICKS_PER_SEC;
 	public static final int DEFAULT_PORT = 7777;
+	
 	public static final boolean VERBOSE = true;
+	public static final boolean VERBOSE2 = false;
 	
 	private LoungeServerListenThread listener;
 	private DatagramSocket sendSocket;
@@ -124,8 +126,9 @@ public class LoungeServer {
 					p.getAddress(), p.getPort());
 			try {
 				this.sendSocket.send(packet);
+				
 			} catch (IOException e) {
-				System.out.println("Failed sending state packet to " +
+				System.out.println("Failed sending state to " +
 						p.getAddress());
 			}
 		}
@@ -137,24 +140,31 @@ public class LoungeServer {
 		synchronized (this.lastKeepAlive) {
 			long now = System.currentTimeMillis();
 			//check every keep alive
-			for (Integer i : this.lastKeepAlive.keySet()) {
-				long timestamp = this.lastKeepAlive.get(i);
+			for (Integer id : this.lastKeepAlive.keySet()) {
+				long timestamp = this.lastKeepAlive.get(id);
 				//disconnect if timestamp too old
 				if (now - timestamp > LoungeServer.DISCONNECT_MILLIS) {
-					disconnectIDs.add(i);
+					disconnectIDs.add(id);
 				}
 			}
 		}
 		//then disconnect them
 		synchronized (this.connectedPersons) {
-			for (Integer i : disconnectIDs) {
-				this.connectedPersons.remove(i);
-				this.state.removePerson(i);
+			for (Integer id : disconnectIDs) {
+				if (LoungeServer.VERBOSE) {
+					Person p = this.connectedPersons.get(id);
+					if (p != null) {
+						System.out.println("disconnect from " +
+								p.getAddress());
+					}
+				}
+				this.connectedPersons.remove(id);
+				this.state.removePerson(id);
 			}
 		}
 		synchronized (this.connectingPersons) {
-			for (Integer i : disconnectIDs) {
-				this.connectingPersons.remove(i);
+			for (Integer id : disconnectIDs) {
+				this.connectingPersons.remove(id);
 			}
 		}
 	}
@@ -168,7 +178,7 @@ public class LoungeServer {
 		synchronized (this.lastKeepAlive) {
 			for (int i = connecting.size() - 1; i >= 0; i--) {
 				int id = connecting.get(i).getID();
-				if (this.lastKeepAlive.containsKey(id)) {
+				if (!this.lastKeepAlive.containsKey(id)) {
 					connecting.remove(i);
 				}
 			}
@@ -186,7 +196,7 @@ public class LoungeServer {
 				for (Person p : connecting) {
 					if (!this.connectedPersons.containsKey(p.getID())) {
 						if (LoungeServer.VERBOSE) {
-							System.out.println("Connect success from " +
+							System.out.println("connect success from " +
 									p.getAddress());
 							System.out.flush();
 						}
