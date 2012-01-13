@@ -5,10 +5,13 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import kuusisto.finn.netlounge.Constants;
 
-public class LoungeClientListenThread extends Thread {
+public class ClientSocketThread extends Thread {
 	
 	public static final int CONFIRM_TIMEOUT = 3000;
 	
@@ -16,12 +19,14 @@ public class LoungeClientListenThread extends Thread {
 	private InetAddress serverAddress;
 	private int serverPort;
 	private ClientLoungeState state;
+	private Queue<DatagramPacket> sendQueue;
 	
-	public LoungeClientListenThread(ClientLoungeState state) 
+	public ClientSocketThread(ClientLoungeState state) 
 			throws SocketException {
 		super("LoungeClientListenThread");
 		this.socket = new DatagramSocket();
 		this.state = state;
+		this.sendQueue = new LinkedList<DatagramPacket>();
 	}
 	
 	public boolean connect(InetAddress host, int port, String name) {
@@ -41,7 +46,7 @@ public class LoungeClientListenThread extends Thread {
 		data = new byte[1024];
 		packet = new DatagramPacket(data, data.length);
 		try {
-			this.socket.setSoTimeout(LoungeClientListenThread.CONFIRM_TIMEOUT);
+			this.socket.setSoTimeout(ClientSocketThread.CONFIRM_TIMEOUT);
 			this.socket.receive(packet);
 			this.socket.setSoTimeout(0);
 		} catch (IOException e) {
@@ -63,6 +68,28 @@ public class LoungeClientListenThread extends Thread {
 			return false;
 		}
 		return true;
+	}
+	
+	public void issueSend(DatagramPacket packet) {
+		synchronized (this.sendQueue) {
+			this.sendQueue.add(packet);
+		}
+	}
+	
+	private void send() {
+		synchronized (this.sendQueue) {
+			DatagramPacket toSend = this.sendQueue.poll();
+			while (toSend != null) {
+				try {
+					this.socket.send(toSend);
+					
+				} catch (IOException e) {
+					System.out.println("Failed sending to " +
+							toSend.getAddress());
+				}
+				toSend = this.sendQueue.poll();
+			}
+		}
 	}
 	
 	private boolean handleConfirm(DatagramPacket packet) {
@@ -142,9 +169,15 @@ public class LoungeClientListenThread extends Thread {
 				this.socket.receive(packet);
 				//process data
 				this.processData(packet);
+			} catch (SocketTimeoutException e) {
+				//don't do shit
+				//I've always said that Exceptions shouldn't be normal behavior
+				// :/
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+			//send outgoing packets
+			this.send();
 		}
 	}
 

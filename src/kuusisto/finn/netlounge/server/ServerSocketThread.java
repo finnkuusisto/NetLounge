@@ -26,17 +26,21 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import kuusisto.finn.netlounge.Constants;
 
-public class LoungeServerListenThread extends Thread {
+public class ServerSocketThread extends Thread {
 	
 	private LoungeServer server;
 	private DatagramSocket socket;
+	private Queue<DatagramPacket> sendQueue;
 	private boolean running;
 	private int nextID;
 	
-	public LoungeServerListenThread(int port, LoungeServer server) {
+	public ServerSocketThread(int port, LoungeServer server) {
 		super("LoungeServerListenThread");
 		try {
 			this.socket = new DatagramSocket(port);
@@ -51,6 +55,7 @@ public class LoungeServerListenThread extends Thread {
 				System.exit(1);
 			}
 		}
+		this.sendQueue = new LinkedList<DatagramPacket>();
 		this.running = true;
 		this.server = server;
 		//insecurely start IDs at 0
@@ -59,6 +64,28 @@ public class LoungeServerListenThread extends Thread {
 	
 	public void shutdown() {
 		this.running = false;
+	}
+	
+	public void issueSend(DatagramPacket packet) {
+		synchronized (this.sendQueue) {
+			this.sendQueue.add(packet);
+		}
+	}
+	
+	private void send() {
+		synchronized (this.sendQueue) {
+			DatagramPacket toSend = this.sendQueue.poll();
+			while (toSend != null) {
+				try {
+					this.socket.send(toSend);
+					
+				} catch (IOException e) {
+					System.out.println("Failed sending to " +
+							toSend.getAddress());
+				}
+				toSend = this.sendQueue.poll();
+			}
+		}
 	}
 	
 	private void processData(DatagramPacket packet) {
@@ -188,17 +215,28 @@ public class LoungeServerListenThread extends Thread {
 	@Override
 	public void run() {
 		System.out.println("listening...");
+		try {
+			this.socket.setSoTimeout(1);
+		} catch (SocketException e1) {
+			System.out.println("failed setting socket timeout");
+		}
 		while (running) {
+			//receive data
 			try {
 				byte[] buf = new byte[2048];
-				//receive data
 				DatagramPacket packet = new DatagramPacket(buf, buf.length);
 				this.socket.receive(packet);
 				//process data
 				this.processData(packet);
+			} catch (SocketTimeoutException e) {
+				//don't do shit
+				//I've always said that Exceptions shouldn't be normal behavior
+				// :/
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+			//send outgoing packets
+			this.send();
 		}
 	}
 

@@ -27,9 +27,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.image.BufferStrategy;
-import java.io.IOException;
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
@@ -56,11 +54,16 @@ public class LoungeClient {
 		1000000000 / LoungeClient.TICKS_PER_SEC;
 	public static final long MILLIS_PER_TICK =
 		1000 / LoungeClient.TICKS_PER_SEC;
+	//keep-alives keep the connection with the server
+	public static final int KEEPALIVES_PER_SEC = 5;
+	public static final long NANOS_PER_KEEPALIVE =
+		1000000000 / LoungeClient.KEEPALIVES_PER_SEC;
+	public static final long MILLIS_PER_KEEPALIVE =
+		1000 / LoungeClient.KEEPALIVES_PER_SEC;
 	
 	private InetAddress serverAddress;
 	private int serverPort;
-	private DatagramSocket socket;
-	private LoungeClientListenThread listener;
+	private ClientSocketThread socketThread;
 	private ClientLoungeState state;
 	
 	private JFrame frame;
@@ -72,9 +75,8 @@ public class LoungeClient {
 		//setup network crap
 		this.serverAddress = InetAddress.getByName(host);
 		this.serverPort = port;
-		this.socket = new DatagramSocket();
 		this.state = new ClientLoungeState();
-		this.listener = new LoungeClientListenThread(this.state);
+		this.socketThread = new ClientSocketThread(this.state);
 		//setup window crap
 		Dimension dim = new Dimension(LoungeClient.WIDTH, LoungeClient.HEIGHT);
 		this.frame = new JFrame("Lounge Client");
@@ -125,8 +127,6 @@ public class LoungeClient {
 		}
 		//send command
 		this.sendCommand(command);
-		//send keep-alive
-		this.sendKeepAlive();
 	}
 	
 	private void sendCommand(int command) {
@@ -135,9 +135,7 @@ public class LoungeClient {
 			byte[] data = commandMessage.getBytes();
 			DatagramPacket packet = new DatagramPacket(data, data.length,
 					this.serverAddress, this.serverPort);
-			try {
-				this.socket.send(packet);
-			} catch (IOException e) { }
+			this.socketThread.issueSend(packet);
 		}
 	}
 	
@@ -146,9 +144,7 @@ public class LoungeClient {
 		byte[] data = keepAlive.getBytes();
 		DatagramPacket packet = new DatagramPacket(data, data.length,
 				this.serverAddress, this.serverPort);
-		try {
-			this.socket.send(packet);
-		} catch (IOException e) { }
+		this.socketThread.issueSend(packet);
 	}
 	
 	private String buildKeepAliveMessage() {
@@ -193,13 +189,13 @@ public class LoungeClient {
 		System.out.print("Please enter your name: ");
 		String name = scan.nextLine();
 		//try to connect
-		if (!this.listener.connect(this.serverAddress, this.serverPort,
+		if (!this.socketThread.connect(this.serverAddress, this.serverPort,
 				name)) {
 			System.out.println("Unable to connect to host!");
 			System.exit(1);
 		}
 		//if successful, start the listen thread
-		this.listener.start();
+		this.socketThread.start();
 		try { //sleep for the listener to get going
 			Thread.sleep(2);
 		} catch (InterruptedException e1) { }
@@ -209,6 +205,7 @@ public class LoungeClient {
 		long now = 0;
 		long lastTick = 0;
 		long lastDraw = 0;
+		long lastKeepAlive = 0;
 		boolean running = true;
 		while (running) {
 			now = System.nanoTime();
@@ -221,6 +218,11 @@ public class LoungeClient {
 			if (now - lastDraw > LoungeClient.NANOS_PER_DRAW) {
 				lastDraw = System.nanoTime();
 				this.draw();
+			}
+			//if time to keep alive
+			if (now - lastKeepAlive > LoungeClient.NANOS_PER_KEEPALIVE) {
+				lastKeepAlive = System.nanoTime();
+				this.sendKeepAlive();
 			}
 			//sleep for a bit
 			try {

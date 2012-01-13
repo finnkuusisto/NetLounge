@@ -22,10 +22,7 @@
 
 package kuusisto.finn.netlounge.server;
 
-import java.io.IOException;
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,8 +41,7 @@ public class LoungeServer {
 	public static final boolean VERBOSE = true;
 	public static final boolean VERBOSE2 = false;
 	
-	private LoungeServerListenThread listener;
-	private DatagramSocket sendSocket;
+	private ServerSocketThread socketThread;
 	private LoungeState state;
 	private Map<Integer,PersonCommand> incomingCommands;
 	private Map<Integer,Long> lastKeepAlive;	
@@ -53,14 +49,7 @@ public class LoungeServer {
 	private Map<Integer,Person> connectedPersons;
 	
 	public LoungeServer(int port) {
-		this.listener = new LoungeServerListenThread(port, this);
-		try {
-			this.sendSocket = new DatagramSocket();
-		} catch (SocketException e) {
-			//ugh
-			System.out.println("Couldn't open send socket!");
-			System.exit(1);
-		}
+		this.socketThread = new ServerSocketThread(port, this);
 		this.state = new LoungeState();
 		this.incomingCommands = new HashMap<Integer,PersonCommand>();
 		this.lastKeepAlive = new HashMap<Integer,Long>();
@@ -70,7 +59,7 @@ public class LoungeServer {
 	
 	private void run() {
 		//start the listen thread
-		this.listener.start();
+		this.socketThread.start();
 		try { //sleep to let the listener start
 			Thread.sleep(2);
 		} catch (InterruptedException e1) {}
@@ -124,13 +113,7 @@ public class LoungeServer {
 		for (Person p : this.connectedPersons.values()) {
 			DatagramPacket packet = new DatagramPacket(data, data.length, 
 					p.getAddress(), p.getPort());
-			try {
-				this.sendSocket.send(packet);
-				
-			} catch (IOException e) {
-				System.out.println("Failed sending state to " +
-						p.getAddress());
-			}
+			this.socketThread.issueSend(packet);
 		}
 	}
 	
