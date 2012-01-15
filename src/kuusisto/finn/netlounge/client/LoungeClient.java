@@ -42,7 +42,6 @@ public class LoungeClient {
 	public static final int WIDTH = 800;
 	public static final int HEIGHT = 800;
 	
-	public static final int TIMEOUT = 10;
 	public static final int DRAWS_PER_SEC = 30;
 	public static final long NANOS_PER_DRAW = 
 		1000000000 / LoungeClient.DRAWS_PER_SEC;
@@ -55,7 +54,7 @@ public class LoungeClient {
 	public static final long MILLIS_PER_TICK =
 		1000 / LoungeClient.TICKS_PER_SEC;
 	//keep-alives keep the connection with the server
-	public static final int KEEPALIVES_PER_SEC = 5;
+	public static final int KEEPALIVES_PER_SEC = 3;
 	public static final long NANOS_PER_KEEPALIVE =
 		1000000000 / LoungeClient.KEEPALIVES_PER_SEC;
 	public static final long MILLIS_PER_KEEPALIVE =

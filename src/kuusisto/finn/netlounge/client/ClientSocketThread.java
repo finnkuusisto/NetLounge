@@ -19,6 +19,7 @@ public class ClientSocketThread extends Thread {
 	private InetAddress serverAddress;
 	private int serverPort;
 	private ClientLoungeState state;
+	private long lastStateReceived;
 	private Queue<DatagramPacket> sendQueue;
 	
 	public ClientSocketThread(ClientLoungeState state) 
@@ -26,6 +27,7 @@ public class ClientSocketThread extends Thread {
 		super("LoungeClientListenThread");
 		this.socket = new DatagramSocket();
 		this.state = state;
+		this.lastStateReceived = 0;
 		this.sendQueue = new LinkedList<DatagramPacket>();
 	}
 	
@@ -139,6 +141,16 @@ public class ClientSocketThread extends Thread {
 		//should be a state message
 		String[] parts = message.split(Constants.MSG_LINE_SEP);
 		if (parts.length > 1 && parts[0].equals(Constants.MSG_STATE)) {
+			//second line should be state update #
+			try {
+				long updateNum = Long.parseLong(parts[1]);
+				if (updateNum <= this.lastStateReceived) {
+					return;
+				}
+				this.lastStateReceived = updateNum;
+			} catch (NumberFormatException e) {
+				return;
+			}
 			//all remaining lines are player positions
 			synchronized (this.state) {
 				this.state.clearPersons();

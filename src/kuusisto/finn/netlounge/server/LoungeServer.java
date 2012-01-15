@@ -39,7 +39,7 @@ public class LoungeServer {
 	public static final int DEFAULT_PORT = 7777;
 	
 	public static final boolean VERBOSE = true;
-	public static final boolean VERBOSE2 = false;
+	public static final boolean VERBOSE2 = true;
 	
 	private ServerSocketThread socketThread;
 	private LoungeState state;
