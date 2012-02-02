@@ -199,8 +199,8 @@ public class LoungeClient {
 			return;
 		}
 		int numRead = this.micLine.read(readData, 0, readData.length);
-		//read any?
-		if (numRead <= 0) {
+		//read any or not talking
+		if (numRead <= 0 || !Controller.isKeyDown(Controller.K_SPACE)) {
 			return;
 		}
 		//get the text part first

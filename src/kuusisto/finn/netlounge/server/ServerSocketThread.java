@@ -124,6 +124,8 @@ public class ServerSocketThread extends Thread {
 			if (parts.length > 4) {
 				try {
 					int id = Integer.parseInt(parts[1]);
+					this.server.issueAudioBroadcast(packet.getData(),
+							packet.getLength(), id);
 				}
 				catch (NumberFormatException e) {
 					return;
@@ -131,10 +133,6 @@ public class ServerSocketThread extends Thread {
 			}
 		}
 		//otherwise it's an invalid message
-	}
-	
-	private void handleAudio(int id, DatagramPacket packet) {
-		
 	}
 	
 	private void handleCommand(String message) {
