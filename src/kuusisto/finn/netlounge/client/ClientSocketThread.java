@@ -19,6 +19,7 @@ public class ClientSocketThread extends Thread {
 	private InetAddress serverAddress;
 	private int serverPort;
 	private ClientLoungeState state;
+	private CrappyClientMixer mixer;
 	private long lastStateReceived;
 	private Queue<DatagramPacket> sendQueue;
 	
@@ -29,6 +30,10 @@ public class ClientSocketThread extends Thread {
 		this.state = state;
 		this.lastStateReceived = 0;
 		this.sendQueue = new LinkedList<DatagramPacket>();
+	}
+	
+	public void setMixer(CrappyClientMixer mixer) {
+		this.mixer = mixer;
 	}
 	
 	public boolean connect(InetAddress host, int port, String name) {
@@ -138,9 +143,28 @@ public class ClientSocketThread extends Thread {
 	
 	private void processData(DatagramPacket packet) {
 		String message = new String(packet.getData(), 0, packet.getLength());
-		//should be a state message
+		//should be a state or voice message
 		String[] parts = message.split(Constants.MSG_LINE_SEP);
-		if (parts.length > 1 && parts[0].equals(Constants.MSG_STATE)) {
+		if (parts.length > 4 && parts[0].equals(Constants.MSG_AUDIO)) {
+			//do we have a mixer?
+			if (this.mixer == null) {
+				return;
+			}
+			//second line should be id
+			//third line should be audio update #
+			//fourth line should be num audio bytes
+			try {
+				int id = Integer.parseInt(parts[1]);
+				int updateNum = Integer.parseInt(parts[2]);
+				int numBytes = Integer.parseInt(parts[3]);
+				this.mixer.writeBytes(id, updateNum, packet.getData(),
+						(packet.getLength() - numBytes), packet.getLength());
+			}
+			catch (NumberFormatException e) {
+				return;
+			}
+		}
+		else if (parts.length > 1 && parts[0].equals(Constants.MSG_STATE)) {
 			//second line should be state update #
 			try {
 				long updateNum = Long.parseLong(parts[1]);

@@ -118,7 +118,23 @@ public class ServerSocketThread extends Thread {
 			}
 			this.handleKeepAlive(message);
 		}
+		else if (message.startsWith(Constants.MSG_AUDIO +
+				Constants.MSG_LINE_SEP)) {
+			String[] parts = message.split(Constants.MSG_LINE_SEP);
+			if (parts.length > 4) {
+				try {
+					int id = Integer.parseInt(parts[1]);
+				}
+				catch (NumberFormatException e) {
+					return;
+				}
+			}
+		}
 		//otherwise it's an invalid message
+	}
+	
+	private void handleAudio(int id, DatagramPacket packet) {
+		
 	}
 	
 	private void handleCommand(String message) {

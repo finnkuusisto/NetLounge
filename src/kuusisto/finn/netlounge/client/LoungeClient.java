@@ -31,8 +31,15 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Scanner;
 
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.SourceDataLine;
+import javax.sound.sampled.TargetDataLine;
 import javax.swing.JFrame;
 
 import kuusisto.finn.netlounge.Constants;
@@ -53,6 +60,13 @@ public class LoungeClient {
 		1000000000 / LoungeClient.TICKS_PER_SEC;
 	public static final long MILLIS_PER_TICK =
 		1000 / LoungeClient.TICKS_PER_SEC;
+	//audio updates
+	public static final int AUDIO_PLAY_PER_SEC = 20;
+	public static final long NANOS_PER_AUDIO_PLAY =
+		1000000000 / LoungeClient.AUDIO_PLAY_PER_SEC;
+	public static final int AUDIO_SEND_PER_SEC = 20;
+	public static final long NANOS_PER_AUDIO_SEND =
+		1000000000 / LoungeClient.AUDIO_SEND_PER_SEC;
 	//keep-alives keep the connection with the server
 	public static final int KEEPALIVES_PER_SEC = 3;
 	public static final long NANOS_PER_KEEPALIVE =
@@ -64,6 +78,9 @@ public class LoungeClient {
 	private int serverPort;
 	private ClientSocketThread socketThread;
 	private ClientLoungeState state;
+	private CrappyClientMixer mixer;
+	private TargetDataLine micLine;
+	private SourceDataLine speakerLine;
 	
 	private JFrame frame;
 	private Canvas canvas;
@@ -76,6 +93,40 @@ public class LoungeClient {
 		this.serverPort = port;
 		this.state = new ClientLoungeState();
 		this.socketThread = new ClientSocketThread(this.state);
+		//setup sound stuff
+		this.mixer = new CrappyClientMixer();
+		AudioFormat format =
+			new AudioFormat(AudioFormat.Encoding.PCM_UNSIGNED, 
+				Constants.SAMPLE_RATE, 8, 1, 1, Constants.SAMPLE_RATE, false);
+		DataLine.Info inInfo = new DataLine.Info(TargetDataLine.class, 
+		    format);
+		DataLine.Info outInfo = new DataLine.Info(SourceDataLine.class, 
+			    format);
+		if (AudioSystem.isLineSupported(inInfo) &&
+				AudioSystem.isLineSupported(outInfo)) {
+			//obtain and open the lines.
+			try {
+			    micLine = (TargetDataLine)AudioSystem.getLine(inInfo);
+			    micLine.open(format);
+			    speakerLine = (SourceDataLine)AudioSystem.getLine(outInfo);
+			    speakerLine.open(format);
+			    micLine.start();
+			    speakerLine.start();
+			}
+			catch (LineUnavailableException e) {
+			    System.out.println("Unable to open audio lines!");
+			    this.micLine = null;
+			    this.speakerLine = null;
+			    this.mixer = null;
+			}
+		}
+		else {
+		    System.out.println("Unsupported audio format!");
+		    this.micLine = null;
+		    this.speakerLine = null;
+		    this.mixer = null;
+		}
+		this.socketThread.setMixer(this.mixer);
 		//setup window crap
 		Dimension dim = new Dimension(LoungeClient.WIDTH, LoungeClient.HEIGHT);
 		this.frame = new JFrame("Lounge Client");
@@ -126,6 +177,58 @@ public class LoungeClient {
 		}
 		//send command
 		this.sendCommand(command);
+	}
+
+	private byte[] playData =
+		new byte[Constants.SAMPLE_RATE / LoungeClient.AUDIO_PLAY_PER_SEC];
+	private void playAudio() {
+		//make sure we have access to the speakers
+		if (this.speakerLine == null) {
+			return;
+		}
+		int numRead = this.mixer.readBytes(playData);
+		this.speakerLine.write(playData, 0, numRead);
+	}
+	
+	private byte[] readData =
+		new byte[Constants.SAMPLE_RATE / LoungeClient.AUDIO_SEND_PER_SEC];
+	private int audioMessagesSent = 0;
+	private void sendAudio() {
+		//make sure we have access to the mic
+		if (this.micLine == null) {
+			return;
+		}
+		int numRead = this.micLine.read(readData, 0, readData.length);
+		//read any?
+		if (numRead <= 0) {
+			return;
+		}
+		//get the text part first
+		byte[] text = this.buildAudioMessage(numRead).getBytes();
+		//now build the full data
+		byte[] data = Arrays.copyOf(text, text.length + numRead);
+		for (int i = 0; i < numRead; i++) {
+			data[i + text.length] = readData[i];
+		}
+		//build the packet
+		DatagramPacket packet = new DatagramPacket(data, data.length,
+				this.serverAddress, this.serverPort);
+		this.socketThread.issueSend(packet);
+		this.audioMessagesSent++;
+	}
+	
+	private String buildAudioMessage(int numBytes) {
+		StringBuilder str = new StringBuilder();
+		str.append(Constants.MSG_AUDIO);
+		str.append(Constants.MSG_LINE_SEP);
+		str.append(this.state.getClientID());
+		str.append(Constants.MSG_LINE_SEP);
+		str.append(this.audioMessagesSent);
+		str.append(Constants.MSG_LINE_SEP);
+		str.append(numBytes);
+		str.append(Constants.MSG_LINE_SEP);
+		return str.toString();
+		
 	}
 	
 	private void sendCommand(int command) {
@@ -205,6 +308,8 @@ public class LoungeClient {
 		long lastTick = 0;
 		long lastDraw = 0;
 		long lastKeepAlive = 0;
+		long lastAudioSend = 0;
+		long lastAudioPlay = 0;
 		boolean running = true;
 		while (running) {
 			now = System.nanoTime();
@@ -223,10 +328,26 @@ public class LoungeClient {
 				lastKeepAlive = System.nanoTime();
 				this.sendKeepAlive();
 			}
+			//if time to send voice
+			if (now - lastAudioSend > LoungeClient.NANOS_PER_AUDIO_SEND) {
+				lastAudioSend = System.nanoTime();
+				this.sendAudio();
+			}
+			//if time to play voice
+			if (now - lastAudioPlay > LoungeClient.NANOS_PER_AUDIO_PLAY) {
+				lastAudioPlay = System.nanoTime();
+				this.playAudio();
+			}
 			//sleep for a bit
 			try {
-				Thread.sleep(2);
+				Thread.sleep(1);
 			} catch (InterruptedException e) { }
+		}
+		if (this.micLine != null) {
+			this.micLine.stop();
+		}
+		if (this.speakerLine != null) {
+			this.speakerLine.stop();
 		}
 	}
 	

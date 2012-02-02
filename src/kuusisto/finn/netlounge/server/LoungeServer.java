@@ -191,6 +191,25 @@ public class LoungeServer {
 		}
 	}
 	
+	public void issueAudioBroadcast(byte[] data, int dataLength, int skipID) {
+		List<DatagramPacket> packets = new ArrayList<DatagramPacket>();
+		synchronized (this.connectedPersons) {
+			for (int id : this.connectedPersons.keySet()) {
+				//don't send to the skip id
+				//if (id != skipID) {
+					Person p = this.connectedPersons.get(id);
+					DatagramPacket packet = new DatagramPacket(data,
+							dataLength, p.getAddress(), p.getPort());
+					packets.add(packet);
+				//}
+			}
+		}
+		//issue send for all
+		for (DatagramPacket packet : packets) {
+			this.socketThread.issueSend(packet);
+		}
+	}
+	
 	public void issuePersonConnecting(Person person) {
 		synchronized (this.connectingPersons) {
 			this.connectingPersons.put(person.getID(), person);
