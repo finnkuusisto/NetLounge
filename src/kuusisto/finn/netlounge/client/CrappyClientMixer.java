@@ -62,17 +62,17 @@ public class CrappyClientMixer {
 	public synchronized int readBytes(byte[] data) {
 		int numRead = 0;
 		for (int i = 0; i < data.length; i++) {
-			byte next = this.nextByte();
-			if (next >= 0) {
-				data[i] = next;
+			int next = this.nextByte();
+			if (next != -1000) {
+				data[i] = (byte)next;
 				numRead++;
 			}
 		}
 		return numRead;
 	}
 	
-	public synchronized byte nextByte() {
-		//assumes 8-bit, unsigned, linear PCM
+	public synchronized int nextByte() {
+		//assumes 8-bit, linear PCM
 		int numLines = 0;
 		int val = 0;
 		for (Queue<Byte> buf : this.buffers.values()) {
@@ -81,8 +81,8 @@ public class CrappyClientMixer {
 				numLines++;
 			}
 		}
-		//average or -1 if no data
-		return (byte)((numLines == 0) ? -1 : (val / numLines));
+		//average or -1000 if no data
+		return (numLines == 0) ? -1000 : (val / numLines);
 	}
 	
 }

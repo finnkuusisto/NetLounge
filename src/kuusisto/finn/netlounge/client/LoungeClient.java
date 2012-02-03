@@ -81,6 +81,9 @@ public class LoungeClient {
 	private CrappyClientMixer mixer;
 	private TargetDataLine micLine;
 	private SourceDataLine speakerLine;
+	private byte[] playData;
+	private byte[] readData;
+	private int audioMessagesSent;
 	
 	private JFrame frame;
 	private Canvas canvas;
@@ -96,7 +99,7 @@ public class LoungeClient {
 		//setup sound stuff
 		this.mixer = new CrappyClientMixer();
 		AudioFormat format =
-			new AudioFormat(AudioFormat.Encoding.PCM_UNSIGNED, 
+			new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 
 				Constants.SAMPLE_RATE, 8, 1, 1, Constants.SAMPLE_RATE, false);
 		DataLine.Info inInfo = new DataLine.Info(TargetDataLine.class, 
 		    format);
@@ -110,6 +113,10 @@ public class LoungeClient {
 			    micLine.open(format);
 			    speakerLine = (SourceDataLine)AudioSystem.getLine(outInfo);
 			    speakerLine.open(format);
+			    this.readData = new byte[Constants.SAMPLE_RATE / 8];
+			    this.playData = new byte[Constants.SAMPLE_RATE /
+			                             LoungeClient.AUDIO_PLAY_PER_SEC];
+			    this.audioMessagesSent = 0;
 			    micLine.start();
 			    speakerLine.start();
 			}
@@ -179,28 +186,27 @@ public class LoungeClient {
 		this.sendCommand(command);
 	}
 
-	private byte[] playData =
-		new byte[Constants.SAMPLE_RATE / LoungeClient.AUDIO_PLAY_PER_SEC];
 	private void playAudio() {
 		//make sure we have access to the speakers
 		if (this.speakerLine == null) {
 			return;
 		}
-		int numRead = this.mixer.readBytes(playData);
-		this.speakerLine.write(playData, 0, numRead);
+		int numRead = this.mixer.readBytes(this.playData);
+		if (numRead == 0) {
+			return;
+		}
+		this.speakerLine.write(this.playData, 0, numRead);
 	}
-	
-	private byte[] readData =
-		new byte[Constants.SAMPLE_RATE / LoungeClient.AUDIO_SEND_PER_SEC];
-	private int audioMessagesSent = 0;
+
 	private void sendAudio() {
 		//make sure we have access to the mic
 		if (this.micLine == null) {
 			return;
 		}
-		int numRead = this.micLine.read(readData, 0, readData.length);
+		int numRead = 
+			this.micLine.read(this.readData, 0, this.readData.length);
 		//read any or not talking
-		if (numRead <= 0 || !Controller.isKeyDown(Controller.K_SPACE)) {
+		if (numRead <= 0) {
 			return;
 		}
 		//get the text part first
@@ -208,7 +214,7 @@ public class LoungeClient {
 		//now build the full data
 		byte[] data = Arrays.copyOf(text, text.length + numRead);
 		for (int i = 0; i < numRead; i++) {
-			data[i + text.length] = readData[i];
+			data[i + text.length] = this.readData[i];
 		}
 		//build the packet
 		DatagramPacket packet = new DatagramPacket(data, data.length,
@@ -337,6 +343,14 @@ public class LoungeClient {
 			if (now - lastAudioPlay > LoungeClient.NANOS_PER_AUDIO_PLAY) {
 				lastAudioPlay = System.nanoTime();
 				this.playAudio();
+			}
+			//check to see if we should start/stop the mic line
+			if (Controller.isKeyDown(Controller.K_SPACE)) {
+				this.micLine.start();
+			}
+			else {
+				this.micLine.stop();
+				this.micLine.flush();
 			}
 			//sleep for a bit
 			try {
